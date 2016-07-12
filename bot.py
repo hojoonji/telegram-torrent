@@ -62,6 +62,8 @@ class T2bot(telepot.helper.ChatHandler):
       self.sender.sendMessage('진행중인 토렌트가 없습니다.')
     else:
       info = [self.server.torrentInfoStr(id) for id in ids]
+      # only torrent exists in server
+      info = [t for t in info if t]
       self.sender.sendMessage('\n\n'.join(info))
 
   # current torrent files downloaded
