@@ -2,6 +2,7 @@
 from sqlite3 import dbapi2 as sqlite
 from pprint import pprint
 
+# sqlite db server
 class dbserver:
   def __init__(self, dbfile):
     self.con = sqlite.connect(dbfile, check_same_thread=False)
@@ -28,19 +29,22 @@ class dbserver:
       )
       """
     )
-  
+ 
+  # user 확인
   def isUser(self, chat_id):
     res = self.con.execute(
       "select username from users where chat_id = %d" % (chat_id)
     ).fetchone()
     return True if res else False
 
+  # username
   def username(self, chat_id):
     res = self.con.execute(
       "select username from users where chat_id = %d" % chat_id
     ).fetchone()
     return res[0]
 
+  # 토렌트 정보 기록
   def addTorrent(self, tinfo):
     try:
       with self.con: 
@@ -53,6 +57,7 @@ class dbserver:
       print('db error: dup on val')
       pprint(tinfo) 
 
+  # 토렌트 정보 삭제
   def deleteTorrent(self, chat_id, id):
     try:
       with self.con:
@@ -63,6 +68,7 @@ class dbserver:
       print('db error: delete')
       pprint(err) 
 
+  # 해당 유저가 가지고 있는 토렌트 정보 
   def torrentIds(self, chat_id):
     cur = self.con.execute("""
     select  id 

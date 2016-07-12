@@ -3,20 +3,18 @@ import os
 from pprint import pprint
 from time import sleep
 
+# 토렌트 서버로 deluge 를 사용한다.
 class deluge:
   def __init__(self):
     pass 
   
   # 마그넷을 추가하고 고유id를 반환한다.
   def add(self, magnet): 
-#    pprint(magnet)
     command = "deluge-console add " + magnet 
     beforeTorrents = self.ongoing()
-#    pprint(beforeTorrents)
     os.system(command)
     sleep(1)
     afterTorrents = self.ongoing()
-#    pprint(afterTorrents)
     newone = [x for x in afterTorrents if x not in beforeTorrents]
     if len(newone) >= 1:
       torrentInfo = newone[0]
@@ -33,11 +31,13 @@ class deluge:
     info = os.popen(command).read()
     return self.parse(info)
 
+  # 토렌트 정보를 문자열로 반환한다.
   def torrentInfoStr(self, id):
     command = "deluge-console info " + id
     info = os.popen(command).read()
     return info
 
+  # 토렌트 정보를 dict 형태로 반환
   def torrentInfo(self, id):
     command = "deluge-console info " + id
     info = os.popen(command).read() 
@@ -59,9 +59,7 @@ class deluge:
       if len(lines) == 0: return None
 
       for line in lines:
-#        print line
         tokens = line.split(': ')
-#        print tokens
         if tokens[0] == 'Name':
           torrentInfo['title'] = tokens[1]
         elif tokens[0] == 'ID':
