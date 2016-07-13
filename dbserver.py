@@ -13,24 +13,21 @@ class dbserver:
       "create table if not exists users(chat_id primary key, username)"
     )
 
-#    self.con.execute(
-#      "drop table if exists torrents"
-#    )
-
     self.con.execute(
       """create table if not exists torrents
       (
-        id text primary key 
+        id text
         , completed integer
         , stime datetime
         , etime datetime
         , chat_id integer
+		, primary key(id, chat_id)
         , foreign key(chat_id) references users(chat_id)
       )
       """
     )
  
-  # user 확인
+  # user check
   def isUser(self, chat_id):
     res = self.con.execute(
       "select username from users where chat_id = %d" % (chat_id)
@@ -44,7 +41,7 @@ class dbserver:
     ).fetchone()
     return res[0]
 
-  # 토렌트 정보 기록
+  # 
   def addTorrent(self, tinfo):
     try:
       with self.con: 
@@ -57,7 +54,7 @@ class dbserver:
       print('db error: dup on val')
       pprint(tinfo) 
 
-  # 토렌트 정보 삭제
+  # 
   def deleteTorrent(self, chat_id, id):
     try:
       with self.con:
@@ -68,7 +65,7 @@ class dbserver:
       print('db error: delete')
       pprint(err) 
 
-  # 해당 유저가 가지고 있는 토렌트 정보 
+  # 
   def torrentIds(self, chat_id):
     cur = self.con.execute("""
     select  id 

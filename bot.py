@@ -59,13 +59,13 @@ class T2bot(telepot.helper.ChatHandler):
   def showTorrentsProgress(self):
     ids = self.db.torrentIds(self.chat_id)
     if len(ids) == 0: 
-      self.sender.sendMessage('진행중인 토렌트가 없습니다.')
+      self.sender.sendMessage('There is no torrents downloading ...')
     else:
       info = [self.server.torrentInfoStr(id) for id in ids]
       # only torrent exists in server
       info = [t for t in info if t]
       if len(info) == 0: 
-        self.sender.sendMessage('진행중인 토렌트가 없습니다.')
+        self.sender.sendMessage('There is no torrents downloading ...')
       else: self.sender.sendMessage('\n\n'.join(info))
 
   # current torrent files downloaded
@@ -73,6 +73,7 @@ class T2bot(telepot.helper.ChatHandler):
     torrents = []
     ids = self.db.torrentIds(self.chat_id)
     torrents = [self.server.torrentInfo(id) for id in ids]
+    torrents = [t for t in torrents if t is not None]
     return torrents
  
   def on_chat_message(self, msg): 
@@ -100,7 +101,7 @@ class T2bot(telepot.helper.ChatHandler):
 
         self.sender.sendMessage('Select torrent to delete ...')
         self.torrents = self.ongoingList()
-        if not len(self.torrents): 
+        if len(self.torrents) == 0: 
           self.sender.sendMessage('There is no downloading files.')
           self.edtTorrents = None
         else:
@@ -144,18 +145,22 @@ class T2bot(telepot.helper.ChatHandler):
     torrent = self.torrents[int(data)]
 
     if self.mode == 'search':
-      self.bot.editMessageText(id, 'Add,  %s' % 
+      self.bot.editMessageText(id, 'Adding,  %s' % 
         self.torrents[int(data)]['title'], reply_markup=None)
       self.addTorrent(torrent['magnet'])
 
     elif self.mode == 'delete': 
-      self.bot.editMessageText(id, 'Delete, %s' % 
+      self.bot.editMessageText(id, 'Deleting, %s' % 
        self.torrents[int(data)]['title'], reply_markup=None)
       self.deleteTorrent(torrent['id'])
 
   # add torrent magnet to torrent server and db server 
   def addTorrent(self, magnet):
     torrentInfo = self.server.add(magnet) 
+    if not torrentInfo:
+      self.sender.sendMessage('Already in list')
+      return
+
     torrentInfo['chat_id'] = self.chat_id
     self.db.addTorrent(torrentInfo)
 
