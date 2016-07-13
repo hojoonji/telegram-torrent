@@ -106,6 +106,13 @@ class T2bot(telepot.helper.ChatHandler):
         else:
           self.showTorrentsMenu(self.torrents) 
 
+      # command - reboot
+      elif msg['text'] == '/reboot':
+	  	self.sender.sendMessage('Torrent server rebooting ...')
+	  	self.sender.sendMessage('*** Do not enter message ***')
+		self.server.reboot()
+	  	self.sender.sendMessage('System ok ...')
+
       # search torrents file using self.search function
       else: 
         self.mode = 'search'

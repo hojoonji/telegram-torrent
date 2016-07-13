@@ -3,12 +3,20 @@ import os
 from pprint import pprint
 from time import sleep
 
-# 토렌트 서버로 deluge 를 사용한다.
+# Deluge server
 class deluge:
   def __init__(self):
     pass 
+
+  def reboot(self):
+    os.system("ps ax | grep -vw grep | grep deluged | awk '{print $1}' | xargs kill -9")
+
+    os.system("deluged")
+    os.system("deluge-console 'recheck *'")
+    os.system("deluge-console 'resume *'")
+
   
-  # 마그넷을 추가하고 고유id를 반환한다.
+  # add magnet return hash id
   def add(self, magnet): 
     command = "deluge-console add " + magnet 
     beforeTorrents = self.ongoing()
@@ -20,35 +28,35 @@ class deluge:
       torrentInfo = newone[0]
       return torrentInfo
         
-  # 선택된 토렌트를 삭제한다.
+  # delete torrent using hash id
   def delete(self, id):
     command = "deluge-console rm " + id
     os.system(command)
   
-  # deluge 에 올라와있는 토렌트 목록  
+  # return torrent download status
   def ongoing(self):
     command = "deluge-console info"
     info = os.popen(command).read()
     return self.parse(info)
 
-  # 토렌트 정보를 문자열로 반환한다.
+  # deluge-console info id
   def torrentInfoStr(self, id):
     command = "deluge-console info " + id
     info = os.popen(command).read()
     return info
 
-  # 토렌트 정보를 dict 형태로 반환
+  # return torrent info as type of dict
   def torrentInfo(self, id):
     command = "deluge-console info " + id
     info = os.popen(command).read() 
     return self.parse(info)[0] if len(info) != 0 else None
  
-  # deluge-console info 의 output 을 parsing 한다. 
+  # parse deluge-console info
   def parse(self, info, torrentSep='\n \n', lineSep = '\n'):
     if info == '': return []
 
     parsed = []
-    # 토렌트 단위로 자른다.
+    # per torrents
     torrents = info.split(torrentSep)
     for torrent in torrents:
       torrentInfo = {}
