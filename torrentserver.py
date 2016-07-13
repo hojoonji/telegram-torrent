@@ -19,14 +19,17 @@ class deluge:
   # add magnet return hash id
   def add(self, magnet): 
     command = "deluge-console add " + magnet 
-    beforeTorrents = self.ongoing()
+    befTorrents = self.ongoing()
+    befTorrents = [{'title': t['title'], 'id':t['id']} for t in befTorrents]
     os.system(command)
     sleep(1)
-    afterTorrents = self.ongoing()
-    newone = [x for x in afterTorrents if x not in beforeTorrents]
+    afTorrents = self.ongoing()
+    afTorrents = [{'title': t['title'], 'id':t['id']} for t in afTorrents]
+    newone = [x for x in afTorrents if x not in befTorrents]
     if len(newone) >= 1:
       torrentInfo = newone[0]
       return torrentInfo
+    else: return None
         
   # delete torrent using hash id
   def delete(self, id):
