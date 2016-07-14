@@ -169,16 +169,25 @@ class T2bot(telepot.helper.ChatHandler):
     self.server.delete(id)
     self.db.deleteTorrent(self.chat_id, id)
 
+class chatbox(telepot.DelegatorBot):
+  def __init__(self, token, search, db):
+    self.search = search
+    self.db = db
+    
+    super(chatbox, self).__init__(token, 
+    [
+      (per_chat_id(), create_open(T2bot, 90, self.search, self.db)),
+    ])
+
+  def cron(self):
+    pass
+	
 ###########################################################################
 db = dbserver('torrent.db')
 f = open('token.txt', 'r') 
 TOKEN = f.read().strip()
 f.close() 
 
-bot = telepot.DelegatorBot(TOKEN, 
-  [
-    (per_chat_id(), create_open(T2bot, 90, searchFromTorrentKim, db)),
-  ])
-
+bot = chatbox(TOKEN, searchFromTorrentKim, db)
 bot.message_loop(run_forever='Listening...')
         
