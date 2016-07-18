@@ -1,10 +1,14 @@
 #-*- coding: utf-8 -*-
 import sys
+import os
+import log
+import logging
+
 from pprint import pprint
 from random import randint
 import telepot
 import telepot.helper
-from telepot.delegate import per_chat_id, create_open
+from telepot.delegate import per_chat_id, create_open, per_application
 from telepot.namedtuple import (
   ReplyKeyboardMarkup, KeyboardButton, 
   ReplyKeyboardHide, ForceReply, 
@@ -16,12 +20,13 @@ from services import searchFromTorrentKim
 from torrentserver import deluge
 from sqlite3 import dbapi2 as sqlite
 from dbserver import dbserver
+from apscheduler.schedulers.background import BackgroundScheduler
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
 class T2bot(telepot.helper.ChatHandler):
-  def __init__(self, seed_tuple, timeout, search, db):
+  def __init__(self, seed_tuple, timeout, search, db, server):
     super(T2bot, self).__init__(seed_tuple, timeout)
     self.search = search
     self.server = deluge()
@@ -109,10 +114,10 @@ class T2bot(telepot.helper.ChatHandler):
 
       # command - reboot
       elif msg['text'] == '/reboot':
-	  	self.sender.sendMessage('Torrent server rebooting ...')
-	  	self.sender.sendMessage('*** Do not enter message ***')
-		self.server.reboot()
-	  	self.sender.sendMessage('System ok ...')
+  	  	self.sender.sendMessage('Torrent server rebooting ...')
+  	  	self.sender.sendMessage('*** Do not enter message ***')
+    		self.server.reboot()
+  	  	self.sender.sendMessage('System ok ...')
 
       # search torrents file using self.search function
       else: 
@@ -169,25 +174,94 @@ class T2bot(telepot.helper.ChatHandler):
     self.server.delete(id)
     self.db.deleteTorrent(self.chat_id, id)
 
+# torrent monitoring
+class jobmonitor(telepot.helper.Monitor):
+  def __init__(self, seed_tuple, server, db):
+    super(jobmonitor, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
+    self.server = server 
+    self.db = db
+    self.logger = logging.getLogger('bot')
+    self.sched = BackgroundScheduler()
+    self.sched.start()
+    self.sched.add_job(self.torrentMonitor, 'interval', minutes=3)
+
+    self.logger.debug('jobmonitor logger init ...')
+
+  def on_chat_message(self, msg): 
+    pass
+
+  def on_callback_query(self, msg): 
+    pass
+
+  def on_close(self, e):
+    self.logger.debug('jobmonitor will shutdown')
+    self.shutdown()
+   
+  def shutdown(self):
+    self.sched.shutdown()
+
+  def torrentMonitor(self):
+    self.logger.debug('========== DB ==========')
+    fromDB = self.db.uncompleted() 
+    self.logger.debug(fromDB)
+
+    self.logger.debug('========== Server ==========')
+    fromServer = self.server.completed() 
+    self.logger.debug(fromServer)
+
+    # extract complete torrents
+    self.logger.debug('========== updateList ==========')
+    updateList = []
+    for dbt in fromDB:
+      for st in fromServer:
+        if dbt['id'] == st['id']:
+          updateList.append({'id':dbt['id'], 'chat_id':dbt['chat_id'], 
+            'title': st['title']}) 
+
+    self.logger.debug(updateList) 
+
+    for t in updateList:
+      self.bot.sendMessage(t['chat_id'], 'downloaded\n' + t['title'])
+      self.db.completeTorrent(t['chat_id'], t['id'])
+
+# Delegator Bot
 class chatbox(telepot.DelegatorBot):
-  def __init__(self, token, search, db):
+  def __init__(self, token, search, db, server):
     self.search = search
     self.db = db
+    self.server = server
     
     super(chatbox, self).__init__(token, 
     [
-      (per_chat_id(), create_open(T2bot, 90, self.search, self.db)),
+      (per_chat_id(), create_open(T2bot, 90, self.search, self.db, server)),
+      (per_application(), create_open(jobmonitor, self.server, self.db)),
     ])
 
   def cron(self):
     pass
 	
-###########################################################################
-db = dbserver('torrent.db')
-f = open('token.txt', 'r') 
-TOKEN = f.read().strip()
-f.close() 
+########################################################################### 
 
-bot = chatbox(TOKEN, searchFromTorrentKim, db)
-bot.message_loop(run_forever='Listening...')
+if __name__ == '__main__':
+  try:
+    logger = log.setupCustomLogger('bot')
+
+    server = deluge()
+    db = dbserver('torrent.db')
+    f = open('token.txt', 'r') 
+
+    TOKEN = f.read().strip()
+    f.close() 
+
+    bot = chatbox(TOKEN, searchFromTorrentKim, db, server)
+    bot.message_loop(run_forever='Listening...')
+
+  except KeyboardInterrupt:
+    print 'Interrupted'
+    try:
+      sys.exit(0)
+    except SystemExit:
+      os._exit(0)
+    
+
         

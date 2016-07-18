@@ -1,11 +1,15 @@
 #-*- coding: utf-8 -*- 
+import logging
 import os
 from pprint import pprint
 from time import sleep
 
+
 # Deluge server
 class deluge:
   def __init__(self):
+    self.logger = logging.getLogger('bot')
+    self.logger.debug('deluge logger init')
     pass 
 
   def reboot(self):
@@ -53,6 +57,12 @@ class deluge:
     command = "deluge-console info " + id
     info = os.popen(command).read() 
     return self.parse(info)[0] if len(info) != 0 else None
+
+  # return torrents completed
+  def completed(self):
+  	torrents = self.ongoing()
+	torrents = [t for t in torrents if t['state'] == 'seeding']
+	return torrents
  
   # parse deluge-console info
   def parse(self, info, torrentSep='\n \n', lineSep = '\n'):
@@ -76,7 +86,7 @@ class deluge:
         elif tokens[0] == 'ID':
           torrentInfo['id'] = tokens[1]
         elif tokens[0] == 'State':
-          torrentInfo['status'] = (tokens[1].split(' '))[0].lower()
+          torrentInfo['state'] = (tokens[1].split(' '))[0].lower()
         elif tokens[0] == 'Seeds':
           torrentInfo['seeds'] = line
         elif tokens[0] == 'Size':

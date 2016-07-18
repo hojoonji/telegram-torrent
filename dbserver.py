@@ -21,7 +21,7 @@ class dbserver:
         , stime datetime
         , etime datetime
         , chat_id integer
-		, primary key(id, chat_id)
+    		, primary key(id, chat_id)
         , foreign key(chat_id) references users(chat_id)
       )
       """
@@ -65,16 +65,39 @@ class dbserver:
       print('db error: delete')
       pprint(err) 
 
+  def completeTorrent(self, chat_id, id):
+    try:
+      with self.con:
+        self.con.execute(
+          """
+					update 	torrents 
+					set 		completed = 1 
+                  , etime = datetime('now', 'localtime')
+					where 	chat_id = %d and id = '%s'
+          """ % (chat_id, id) 
+        )
+    except sqlite.Error as err:
+      print('db error: update')
+      pprint(err) 
+
   # 
   def torrentIds(self, chat_id):
     cur = self.con.execute("""
     select  id 
     from    torrents 
     where   chat_id = %d
-    and     completed = 0
     """ % chat_id)
     results = cur.fetchall()
     return [r[0] for r in results]
+
+  def uncompleted(self):
+    cur = self.con.execute("""
+      select  distinct id, chat_id
+      from    torrents 
+      where   completed = 0
+      """)
+    results = cur.fetchall()
+    return [{'id':r[0], 'chat_id':r[1]} for r in results]
 
 
 
