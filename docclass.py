@@ -7,7 +7,7 @@ def getwords(doc):
   EXCL = ['hdtv', 'h264', '720p', '1080p', 'rumors', 'avi', 'mp4', 'mkv',
     'x264', '1080i', 'sodihd', 'rtp', 'film', 'cinebus', '450p', 'aac',
     'unknown', 'with',]  
-  splitter = re.compile('[\_:.,\- \[\]]+')
+  splitter = re.compile('[\'\"\_:.,\- \[\]]+')
   words = [s.lower().strip() for s in splitter.split(doc) if s.lower() not in EXCL]
   return dict([(w, 1) for w in words])
   
