@@ -26,6 +26,8 @@ sys.setdefaultencoding('utf-8')
 class FileClassifier(telepot.helper.Monitor):
   def __init__(self, seed_tuple, classifier, srcPath, destPath):
     super(FileClassifier, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
+    self.logger = logging.getLogger('fileclassifier')
+    self.logger.debug('FileClassifier logger init')
     self.cl = cl
     self.srcPath = srcPath
     self.destPath = destPath
@@ -51,7 +53,10 @@ class FileClassifier(telepot.helper.Monitor):
   def correctPath(self):
     for root, dirnames, filenames in os.walk(self.srcPath):
       if len(filenames) == 0:
-        os.rmdir(root)
+        try:
+          os.rmdir(root)
+        except:
+          self.logger.debug('rmdir error')
 
     for root, dirnames, filenames in os.walk(self.srcPath):
       currentPath = root 
@@ -82,15 +87,9 @@ class FileClassifier(telepot.helper.Monitor):
     else: return None
 
   def fileMove(self, fileInfo):
-    # print(fileInfo['srcPath'])
-    # print(fileInfo['destPath'])
     command = ' '.join(['mv', fileInfo['srcPath'], fileInfo['destPath']])
-    print command
+    self.logger.debug(command)
     os.system(command)
-    # os.rename(src, dest)
-
-  # def removeSpecialChars(self, text):
-  #   return os.rename(text, re.sub('[\s\'!\(\)\,]', '_', text))
 
   def kbdSubFolder(self, path):
     print(path)
@@ -161,7 +160,6 @@ class FileClassifier(telepot.helper.Monitor):
     
     if self.mode == 'guess': 
       if data == 'YES':
-        print(self.fileInfo)
         self.fileMove(self.fileInfo)
         self.cl.train(self.fileInfo['name'], self.fileInfo['guess'])
         self.fileInfo = None
@@ -202,10 +200,10 @@ class FileClassifier(telepot.helper.Monitor):
       self.classify(from_id)
 
 # Delegator Bot
-class TestBot(telepot.DelegatorBot):
+class ChatBot(telepot.DelegatorBot):
   def __init__(self, token, cl, srcPath, destPath):
     
-    super(TestBot, self).__init__(token, 
+    super(ChatBot, self).__init__(token, 
     [
       (per_application(), create_open(FileClassifier, cl, srcPath, destPath)),
     ])
@@ -253,13 +251,12 @@ if __name__ == '__main__':
     cl.setdb('torrent.db')
     sampleTrain(cl)
 
-
-    logger = log.setupCustomLogger('testBot') 
-    f = open('token.txt', 'r') 
+    logger = log.setupCustomLogger('fileclassifier', 'fileclassifier.log') 
+    f = open('token_classify.txt', 'r') 
     TOKEN = f.read().strip()
     f.close() 
 
-    bot = TestBot(TOKEN, cl, SRC_PATH, DEST_PATH)
+    bot = ChatBot(TOKEN, cl, SRC_PATH, DEST_PATH)
     bot.message_loop(run_forever='Listening...')
 
   except KeyboardInterrupt:

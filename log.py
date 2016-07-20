@@ -4,14 +4,14 @@ import logging.handlers
 
 fileMaxByte = 1024*1024*10 # 10MB
 
-def setupCustomLogger(name):
+def setupCustomLogger(loggerName, logfile):
   formatter = logging.Formatter('[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s > %(message)s')
-  fileHandler = logging.handlers.RotatingFileHandler('./bot.log', maxBytes=fileMaxByte, backupCount=10)
+  fileHandler = logging.handlers.RotatingFileHandler(logfile, maxBytes=fileMaxByte, backupCount=10)
   fileHandler.setFormatter(formatter) 
   streamHandler = logging.StreamHandler()
   streamHandler.setFormatter(formatter)
 
-  logger = logging.getLogger(name)
+  logger = logging.getLogger(loggerName)
   logger.setLevel(logging.DEBUG)
   logger.addHandler(fileHandler)
   logger.addHandler(streamHandler)

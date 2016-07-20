@@ -8,7 +8,7 @@ from time import sleep
 # Deluge server
 class deluge:
   def __init__(self):
-    self.logger = logging.getLogger('bot')
+    self.logger = logging.getLogger('torrentserver')
     self.logger.debug('deluge logger init')
     pass 
 

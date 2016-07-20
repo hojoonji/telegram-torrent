@@ -21,6 +21,7 @@ from torrentserver import deluge
 from sqlite3 import dbapi2 as sqlite
 from dbserver import dbserver
 from apscheduler.schedulers.background import BackgroundScheduler
+import docclass
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -28,11 +29,15 @@ sys.setdefaultencoding('utf-8')
 class T2bot(telepot.helper.ChatHandler):
   def __init__(self, seed_tuple, timeout, search, db, server):
     super(T2bot, self).__init__(seed_tuple, timeout)
+    self.logger = logging.getLogger('torrentbot')
+    self.logger.debug('FileClassifier logger init')
     self.search = search
     self.server = deluge()
     self.db = db
     self.torrents = []
     self.mode = ''
+
+
 
     # inline keyboards
     self.edtTorrents = None
@@ -244,11 +249,10 @@ class chatbox(telepot.DelegatorBot):
 
 if __name__ == '__main__':
   try:
-    logger = log.setupCustomLogger('bot')
-
+    logger = log.setupCustomLogger('torrentbot', './torrentbot.log')
     server = deluge()
     db = dbserver('torrent.db')
-    f = open('token.txt', 'r') 
+    f = open('token_chat.txt', 'r') 
 
     TOKEN = f.read().strip()
     f.close() 
