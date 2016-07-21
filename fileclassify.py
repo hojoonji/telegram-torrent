@@ -7,6 +7,8 @@ import fnmatch
 import re
 import docclass
 import shutil
+import json
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from random import randint
 import telepot
@@ -24,7 +26,7 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 
 class FileClassifier(telepot.helper.Monitor):
-  def __init__(self, seed_tuple, classifier, srcPath, destPath):
+  def __init__(self, seed_tuple, classifier, srcPath, destPath, baseProb):
     super(FileClassifier, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
     self.logger = logging.getLogger('fileclassifier')
     self.logger.debug('FileClassifier logger init')
@@ -34,6 +36,17 @@ class FileClassifier(telepot.helper.Monitor):
     self.mode = ''
     self.spchars = re.compile('[\s\'!\(\)\,]')
     self.edtMsg = None
+    self.files = None
+
+    self.baseProb = float(baseProb)
+    self.autoFiles = None
+    self.autoFileInfo = None
+    self.autoSched = BackgroundScheduler()
+    self.autoSched.start()
+    self.autoSched.add_job(self.autoClassify, 'interval', hours=3)
+
+    self.autoClassify()
+
     self.kbdYESNO = InlineKeyboardMarkup(
         inline_keyboard=[
           [
@@ -73,18 +86,21 @@ class FileClassifier(telepot.helper.Monitor):
           l.append(fileInfo)
     return l
 
-  def fileFeeder(self):
-    if len(self.files) > 0:
-        idx = randint(0, len(self.files)-1)
-        fileInfo = self.files[idx]
-        del self.files[idx]
+  def fileFeeder(self, files):
+    if len(files) > 0:
+        idx = randint(0, len(files)-1)
+        fileInfo = files[idx]
+        del files[idx]
         return fileInfo
     else: return None
 
   def fileMove(self, fileInfo):
+    # self.logger.debug(fileInfo)
     try:
       shutil.move(fileInfo['srcPath'], fileInfo['destPath'])
-    except IOError, e:
+      # self.logger.debug('file move ok')
+    except Exception, e:
+      self.logger.debug('file move failed')
       self.logger.error(e)
 
 
@@ -92,18 +108,40 @@ class FileClassifier(telepot.helper.Monitor):
     l = []
     for dirname in os.listdir(path):
       l.append([InlineKeyboardButton(text=dirname, callback_data=dirname)])
-    l.append([InlineKeyboardButton(text='New folder ...', callback_data='new_folder')])
     return l
 
+  def autoClassify(self):
+    self.autoFiles = self.fileList()
+    for fileInfo in self.autoFiles:
+      try:
+        guess, prob = self.cl.classify(fileInfo['name'])
+        self.logger.debug('file: %s, base: %.2f, guess: %s prob: %.2f' % (filInfo['name'], self.baseProb, guess, prob))
+        if float(prob) >= self.baseProb:
+          fileInfo['guess'] = str(guess)
+          fileInfo['destPath'] = os.path.join(self.destPath, guess, fileInfo['name'])
+          self.fileMove(fileInfo)
+          self.cl.train(fileInfo['name'], fileInfo['guess'])
+          msg = 'auto move %s\n=> %s(%.2f)' % (fileInfo['name'], fileInfo['guess'], prob)
+          self.bot.sendMessage(28204859, msg)
+        else:
+          self.logger.debug('prob is low')
+          pass
+      except:
+        pass
+
   def classify(self, chat_id):
-    fileInfo = self.fileFeeder()
+    self.logger.debug('in classify')
+    fileInfo = self.fileFeeder(self.files)
+    self.logger.debug('get new file')
     if fileInfo:
       try: 
-        guess = str(self.cl.classify(fileInfo['name']))
+        self.logger.debug('before guess')
+        guess, prob = self.cl.classify(fileInfo['name'])
+        self.logger.debug('after guess')
         self.mode = 'guess'
-        fileInfo['guess'] = guess
-        fileInfo['destPath'] = os.path.join(self.destPath, guess)
-        output = fileInfo['name'] + '\n=> ' + guess
+        fileInfo['guess'] = str(guess)
+        fileInfo['destPath'] = os.path.join(self.destPath, guess, fileInfo['name'])
+        output = '%s\n => %s(%.2f)' % (fileInfo['name'], guess, prob)
         self.fileInfo = fileInfo
         self.edtMsg = self.bot.sendMessage(chat_id, output, 
                          reply_markup=self.kbdYESNO)
@@ -132,6 +170,7 @@ class FileClassifier(telepot.helper.Monitor):
       self.editLastMessage('...')
 
       self.correctPath()
+      # get new file list only user request
       self.files = self.fileList() 
       self.classify(chat_id)
 
@@ -142,7 +181,7 @@ class FileClassifier(telepot.helper.Monitor):
       if not os.path.exists(newpath):
         os.makedirs(newpath)
       self.fileInfo['guess'] = '/'.join([self.fileInfo['guess'], newfolder])
-      self.fileInfo['destPath'] = os.path.join(self.fileInfo['destPath'], newfolder)
+      self.fileInfo['destPath'] = os.path.join(self.fileInfo['destPath'], newfolder, self.fileInfo['name'])
       self.fileMove(self.fileInfo)
       self.cl.train(self.fileInfo['name'], self.fileInfo['guess'])
       self.mode = 'guess'
@@ -186,7 +225,7 @@ class FileClassifier(telepot.helper.Monitor):
         return
 
       self.fileInfo['guess'] = '/'.join([self.fileInfo['guess'], data])
-      self.fileInfo['destPath'] = os.path.join(self.fileInfo['destPath'], data)
+      self.fileInfo['destPath'] = os.path.join(self.fileInfo['destPath'], data, self.fileInfo['name'])
       self.fileMove(self.fileInfo)
       self.cl.train(self.fileInfo['name'], self.fileInfo['guess'])
       self.editLastMessage('file move ok')
@@ -195,11 +234,11 @@ class FileClassifier(telepot.helper.Monitor):
 
 # Delegator Bot
 class ChatBot(telepot.DelegatorBot):
-  def __init__(self, token, cl, srcPath, destPath):
+  def __init__(self, token, cl, srcPath, destPath, baseProb):
     
     super(ChatBot, self).__init__(token, 
     [
-      (per_application(), create_open(FileClassifier, cl, srcPath, destPath)),
+      (per_application(), create_open(FileClassifier, cl, srcPath, destPath, baseProb)),
     ])
 
 
@@ -235,9 +274,6 @@ def sampleTrain(cl):
   pass
   
 ########################################################################### 
-  
-SRC_PATH = "/home/pi/Videos/torrent-download/completed"
-DEST_PATH = "/home/pi/Videos/torrent-download"
 
 if __name__ == '__main__':
   try:
@@ -246,11 +282,17 @@ if __name__ == '__main__':
     sampleTrain(cl)
 
     logger = log.setupCustomLogger('fileclassifier', 'fileclassifier.log') 
-    f = open('token_classify.txt', 'r') 
-    TOKEN = f.read().strip()
-    f.close() 
 
-    bot = ChatBot(TOKEN, cl, SRC_PATH, DEST_PATH)
+   
+    with open('setting.json', 'r') as f:
+      setting = json.load(f)
+
+    TOKEN = str(setting['token']['classify'])
+    SRC_PATH = str(setting['src_path'])
+    DEST_PATH = str(setting['dest_path'])
+    BASE_PROB = float(setting['base_prob'])
+
+    bot = ChatBot(TOKEN, cl, SRC_PATH, DEST_PATH, BASE_PROB)
     bot.message_loop(run_forever='Listening...')
 
   except KeyboardInterrupt:

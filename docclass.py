@@ -4,11 +4,12 @@ import math
 from sqlite3 import dbapi2 as sqlite
 
 def getwords(doc): 
-  EXCL = ['hdtv', 'h264', '720p', '1080p', 'rumors', 'avi', 'mp4', 'mkv',
-    'x264', '1080i', 'sodihd', 'rtp', 'film', 'cinebus', '450p', 'aac',
-    'unknown', 'with',]  
+  text = doc.lower()
+  pattern = r"""(\d{3,4}[pi]|\d{6,8}|[xh]\d{3}|hdtv|rumors|
+              sodihd|rtp|film|cinebus|aac|unknown|with|\.\D{3}$|e\d{1,3})"""
+  text = re.sub(pattern, '', text) 
   splitter = re.compile('[\'\"\_:.,!\?\- \[\]]+')
-  words = [s.lower().strip() for s in splitter.split(doc) if s.lower() not in EXCL]
+  words = [s.strip() for s in splitter.split(text) if s != '']
   return dict([(w, 1) for w in words])
   
 class classifier:
@@ -187,5 +188,5 @@ class fisherclassifier(classifier):
       if p > self.getminimum(c) and p > max: 
         best = c 
         max = p
-    return best
+    return best, max
   
