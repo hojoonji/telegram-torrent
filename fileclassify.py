@@ -6,8 +6,8 @@ import logging
 import fnmatch
 import re
 import docclass
+import shutil
 
-from pprint import pprint
 from random import randint
 import telepot
 import telepot.helper
@@ -41,22 +41,17 @@ class FileClassifier(telepot.helper.Monitor):
             InlineKeyboardButton(text='NO', callback_data='NO'),
           ],
         ])
-    self.kbdMainFolder = InlineKeyboardMarkup(
-        inline_keyboard=[
-          [InlineKeyboardButton(text='Drama', callback_data='Drama')],
-          [InlineKeyboardButton(text='Movies', callback_data='Movies')],
-          [InlineKeyboardButton(text='Entertainment', callback_data='Entertainment')],
-          [InlineKeyboardButton(text='Documentary', callback_data='Documentary')],
-        ])
+    self.kbdMainFolder = InlineKeyboardMarkup(inline_keyboard=self.folders(self.destPath))
 
   # remove special chars
   def correctPath(self):
     for root, dirnames, filenames in os.walk(self.srcPath):
-      if len(filenames) == 0:
-        try:
-          os.rmdir(root)
-        except:
-          self.logger.debug('rmdir error')
+      if root != self.srcPath:
+        if len(filenames) == 0:
+          try:
+            os.rmdir(root)
+          except:
+            self.logger.debug('rmdir error')
 
     for root, dirnames, filenames in os.walk(self.srcPath):
       currentPath = root 
@@ -87,17 +82,16 @@ class FileClassifier(telepot.helper.Monitor):
     else: return None
 
   def fileMove(self, fileInfo):
-    command = ' '.join(['mv', fileInfo['srcPath'], fileInfo['destPath']])
-    self.logger.debug(command)
-    os.system(command)
+    try:
+      shutil.move(fileInfo['srcPath'], fileInfo['destPath'])
+    except IOError, e:
+      self.logger.error(e)
 
-  def kbdSubFolder(self, path):
-    print(path)
+
+  def folders(self, path):
     l = []
-    for root, dirnames, filenames in os.walk(path):
-      for dirname in dirnames:
-        print(dirname)
-        l.append([InlineKeyboardButton(text=dirname, callback_data=dirname)])
+    for dirname in os.listdir(path):
+      l.append([InlineKeyboardButton(text=dirname, callback_data=dirname)])
     l.append([InlineKeyboardButton(text='New folder ...', callback_data='new_folder')])
     return l
 
@@ -178,7 +172,7 @@ class FileClassifier(telepot.helper.Monitor):
       path = os.path.join(self.destPath, data)
       self.fileInfo['guess'] = data
       self.fileInfo['destPath'] = os.path.join(self.destPath, data)
-      buttons = self.kbdSubFolder(path)
+      buttons = self.folders(path)
       markup = InlineKeyboardMarkup(inline_keyboard=buttons)
       self.editLastMessage('...')
       msg = 'Choose sub folder for ' + self.fileInfo['name'] + ' ...'
