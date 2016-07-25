@@ -185,7 +185,7 @@ class jobmonitor(telepot.helper.Monitor):
     super(jobmonitor, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
     self.server = server 
     self.db = db
-    self.logger = logging.getLogger('bot')
+    self.logger = logging.getLogger('torrentbot')
     self.sched = BackgroundScheduler()
     self.sched.start()
     self.sched.add_job(self.torrentMonitor, 'interval', minutes=3)
