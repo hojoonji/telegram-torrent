@@ -40,7 +40,6 @@ class FileClassifier(telepot.helper.Monitor):
     self.folders = None
 
     self.baseProb = float(baseProb)
-    self.autoFiles = None
     self.autoFileInfo = None
     self.autoSched = BackgroundScheduler()
     self.autoSched.start()
@@ -98,7 +97,7 @@ class FileClassifier(telepot.helper.Monitor):
       l.append(folderInfo)
     return l
 
-  def fileFeeder(self, files):
+  def feeder(self, files):
     if len(files) > 0:
         idx = randint(0, len(files)-1)
         fileInfo = files[idx]
@@ -106,23 +105,12 @@ class FileClassifier(telepot.helper.Monitor):
         return fileInfo
     else: return None
 
-  def folderFeeder(self, folders):
-    if len(folders) > 0:
-        idx = randint(0, len(folders)-1)
-        folderInfo = folders[idx]
-        del folders[idx]
-        return folderInfo
-    else: return None
-
-  def fileMove(self, fileInfo):
-    # self.logger.debug(fileInfo)
+  def move(self, fileInfo):
     try:
       shutil.move(fileInfo['srcPath'], fileInfo['destPath'])
-      # self.logger.debug('file move ok')
     except Exception, e:
       self.logger.debug('file move failed')
       self.logger.error(e)
-
 
   def folderButtons(self, path):
     l = []
@@ -131,29 +119,43 @@ class FileClassifier(telepot.helper.Monitor):
     return l
 
   def autoClassify(self):
-    oks = []
-    failed = []
-    self.autoFiles = self.fileList()
-    for fileInfo in self.autoFiles:
+    passList = []
+    failList = []
+    fileInfos = self.fileList()
+    for fileInfo in fileInfos:
       try:
         guess, prob = self.cl.classify(fileInfo['name'])
-        self.logger.debug('file: %s, base: %.2f, guess: %s prob: %.2f' % (filInfo['name'], self.baseProb, guess, prob))
+        self.logger.debug('file: %s, base: %.2f, guess: %s prob: %.2f' % (fileInfo['name'], self.baseProb, guess, prob))
+        fileInfo['prob'] = float(prob)
+        fileInfo['guess'] = str(guess)
         if float(prob) >= self.baseProb:
-          fileInfo['guess'] = str(guess)
+          passList.append(fileInfo)
           fileInfo['destPath'] = os.path.join(self.destPath, guess, fileInfo['name'])
-          self.fileMove(fileInfo)
+          self.move(fileInfo)
           self.cl.train(fileInfo['name'], fileInfo['guess'])
-          msg = 'auto move %s\n=> %s(%.2f)' % (fileInfo['name'], fileInfo['guess'], prob)
           
           self.bot.sendMessage(28204859, msg)
         else:
+          failList.append(fileInfo)
           self.logger.debug('prob is low')
           pass
       except:
         pass
+   
+    if len(passList) > 0: 
+      self.bot.sendMessage(28204859, 'Auto move success list ...')        
+      for fileInfo in passList:
+        msg = '%s\n=> %s(%.2f)' % (fileInfo['name'], fileInfo['guess'], fileInfo['prob'])
+        self.bot.sendMessage(28204859, msg)
+
+    if len(failList) > 0: 
+      self.bot.sendMessage(28204859, 'Auto move failed list ...')        
+      for fileInfo in failList:
+        msg = '%s\n=> %s(%.2f)' % (fileInfo['name'], fileInfo['guess'], fileInfo['prob'])
+        self.bot.sendMessage(28204859, msg)
 
   def folderClassify(self, chat_id):
-    folderInfo = self.folderFeeder(self.folders)
+    folderInfo = self.feeder(self.folders)
     if folderInfo:
       msg = 'folder move: %s to ...' % folderInfo['name']
       self.folderInfo = folderInfo
@@ -162,14 +164,10 @@ class FileClassifier(telepot.helper.Monitor):
       self.bot.sendMessage(chat_id, 'No more folders ...')
       
   def classify(self, chat_id):
-    # self.logger.debug('in classify')
-    fileInfo = self.fileFeeder(self.files)
-    # self.logger.debug('get new file')
+    fileInfo = self.feeder(self.files)
     if fileInfo:
       try: 
-        # self.logger.debug('before guess')
         guess, prob = self.cl.classify(fileInfo['name'])
-        # self.logger.debug('after guess')
         self.mode = 'guess'
         fileInfo['guess'] = str(guess)
         fileInfo['destPath'] = os.path.join(self.destPath, guess, fileInfo['name'])
@@ -185,7 +183,7 @@ class FileClassifier(telepot.helper.Monitor):
         self.edtMsg = self.bot.sendMessage(chat_id, 'Choose main folder ...', 
           reply_markup=self.kbdMainFolder)
     else:
-      self.bot.sendMessage(chat_id, 'No files ...')
+      self.bot.sendMessage(chat_id, 'No more files ...')
 
   def editLastMessage(self, msg):
     if self.edtMsg:
@@ -222,7 +220,7 @@ class FileClassifier(telepot.helper.Monitor):
         os.makedirs(newpath)
       self.fileInfo['guess'] = '/'.join([self.fileInfo['guess'], newfolder])
       self.fileInfo['destPath'] = os.path.join(self.fileInfo['destPath'], newfolder, self.fileInfo['name'])
-      self.fileMove(self.fileInfo)
+      self.move(self.fileInfo)
       self.cl.train(self.fileInfo['name'], self.fileInfo['guess'])
       self.mode = 'guess'
       self.fileInfo = None
@@ -233,7 +231,7 @@ class FileClassifier(telepot.helper.Monitor):
     
     if self.mode == 'guess': 
       if data == 'YES':
-        self.fileMove(self.fileInfo)
+        self.move(self.fileInfo)
         self.cl.train(self.fileInfo['name'], self.fileInfo['guess'])
         self.fileInfo = None
         
@@ -254,7 +252,7 @@ class FileClassifier(telepot.helper.Monitor):
     elif self.mode == 'move_folder': 
       self.folderInfo['destPath'] = os.path.join(self.destPath, data)
       self.logger.debug(self.folderInfo)
-      self.fileMove(self.folderInfo)
+      self.move(self.folderInfo)
       self.editLastMessage('folder move ok')
       self.folderInfo = None
       self.folderClassify(from_id)
@@ -263,7 +261,7 @@ class FileClassifier(telepot.helper.Monitor):
       path = os.path.join(self.destPath, data)
       self.fileInfo['guess'] = data
       self.fileInfo['destPath'] = os.path.join(self.destPath, data)
-      buttons = self.folders(path)
+      buttons = self.folderButtons(path)
       markup = InlineKeyboardMarkup(inline_keyboard=buttons)
       self.editLastMessage('...')
       msg = 'Choose sub folder for ' + self.fileInfo['name'] + ' ...'
@@ -278,7 +276,7 @@ class FileClassifier(telepot.helper.Monitor):
 
       self.fileInfo['guess'] = '/'.join([self.fileInfo['guess'], data])
       self.fileInfo['destPath'] = os.path.join(self.fileInfo['destPath'], data, self.fileInfo['name'])
-      self.fileMove(self.fileInfo)
+      self.move(self.fileInfo)
       self.cl.train(self.fileInfo['name'], self.fileInfo['guess'])
       self.editLastMessage('file move ok')
       self.fileInfo = None 
