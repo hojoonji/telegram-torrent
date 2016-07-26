@@ -1,0 +1,10 @@
+{
+  "token": {
+    "torrent": "YOUR TELEGRAM TOKEN A",
+    "classify": "YOUR TELEGRAM TOKEN B"
+  }, 
+  "src_path":  "DIRECTORY PATH",
+  "dest_path": "DIRECTORY PATH",
+  "base_prob": 0.75,
+  "super_user": 1111111
+}
