@@ -2,11 +2,12 @@
 import re 
 import math 
 from sqlite3 import dbapi2 as sqlite
+from pprint import pprint
 
 def getwords(doc): 
   text = doc.lower()
   pattern = r"""(\d{3,4}[pi]|\d{6,8}|[xh]\d{3}|hdtv|rumors|
-              sodihd|rtp|film|cinebus|aac|unknown|with|\.\D{3}$|e\d{1,3})"""
+              sodihd|rtp|film|cinebus|aac|unknown|with|next|\.\D{3}$|e\d{1,3})"""
   text = re.sub(pattern, '', text) 
   splitter = re.compile('[\'\"\_:.,!\?\- \[\]]+')
   words = [s.strip() for s in splitter.split(text) if s != '']
