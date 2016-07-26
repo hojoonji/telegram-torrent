@@ -3,6 +3,7 @@ import sys
 import os
 import log
 import logging
+import json
 
 from pprint import pprint
 from random import randint
@@ -36,8 +37,6 @@ class T2bot(telepot.helper.ChatHandler):
     self.db = db
     self.torrents = []
     self.mode = ''
-
-
 
     # inline keyboards
     self.edtTorrents = None
@@ -180,9 +179,9 @@ class T2bot(telepot.helper.ChatHandler):
     self.db.deleteTorrent(self.chat_id, id)
 
 # torrent monitoring
-class jobmonitor(telepot.helper.Monitor):
+class JobMonitor(telepot.helper.Monitor):
   def __init__(self, seed_tuple, server, db):
-    super(jobmonitor, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
+    super(JobMonitor, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
     self.server = server 
     self.db = db
     self.logger = logging.getLogger('torrentbot')
@@ -227,37 +226,36 @@ class jobmonitor(telepot.helper.Monitor):
 
     for t in updateList:
       self.bot.sendMessage(t['chat_id'], 'downloaded\n' + t['title'])
-      self.db.completeTorrent(t['chat_id'], t['id'])
+      # self.db.completeTorrent(t['chat_id'], t['id'])
+      self.server.delete(t['id'])
+      self.db.deleteTorrent(t['chat_id'], t['id'])
 
 # Delegator Bot
-class chatbox(telepot.DelegatorBot):
+class ChatBox(telepot.DelegatorBot):
   def __init__(self, token, search, db, server):
     self.search = search
     self.db = db
     self.server = server
     
-    super(chatbox, self).__init__(token, 
+    super(ChatBox, self).__init__(token, 
     [
       (per_chat_id(), create_open(T2bot, 90, self.search, self.db, server)),
-      (per_application(), create_open(jobmonitor, self.server, self.db)),
+      (per_application(), create_open(JobMonitor, self.server, self.db)),
     ])
-
-  def cron(self):
-    pass
 	
 ########################################################################### 
 
 if __name__ == '__main__':
   try:
+    with open('setting.json', 'r') as f:
+      settings = json.load(f)
+    TOKEN = str(settings['token']['torrent'])
+
     logger = log.setupCustomLogger('torrentbot', './torrentbot.log')
     server = deluge()
     db = dbserver('torrent.db')
-    f = open('token_chat.txt', 'r') 
 
-    TOKEN = f.read().strip()
-    f.close() 
-
-    bot = chatbox(TOKEN, searchFromTorrentKim, db, server)
+    bot = ChatBox(TOKEN, searchFromTorrentKim, db, server)
     bot.message_loop(run_forever='Listening...')
 
   except KeyboardInterrupt:

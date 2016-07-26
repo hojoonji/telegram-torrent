@@ -26,7 +26,7 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 
 class FileClassifier(telepot.helper.Monitor):
-  def __init__(self, seed_tuple, classifier, srcPath, destPath, baseProb):
+  def __init__(self, seed_tuple, classifier, srcPath, destPath, baseProb, superUser):
     super(FileClassifier, self).__init__(seed_tuple, capture=[{'_': lambda msg: True}])
     self.logger = logging.getLogger('fileclassifier')
     self.logger.debug('FileClassifier logger init')
@@ -38,6 +38,7 @@ class FileClassifier(telepot.helper.Monitor):
     self.edtMsg = None
     self.files = None
     self.folders = None
+    self.superUser = superUser
 
     self.baseProb = float(baseProb)
     self.autoFileInfo = None
@@ -56,6 +57,14 @@ class FileClassifier(telepot.helper.Monitor):
           ],
         ])
     self.kbdMainFolder = InlineKeyboardMarkup(inline_keyboard=self.folderButtons(self.destPath))
+
+  def on_close(self, e):
+    self.logger.debug('FileClassifier will shutdown')
+    self.shutdown()
+
+  def shutdown():
+    self.autoSched.shutdown()
+
 
   # remove special chars
   def correctPath(self):
@@ -163,7 +172,7 @@ class FileClassifier(telepot.helper.Monitor):
     else:
       self.bot.sendMessage(chat_id, 'No more folders ...')
       
-  def classify(self, chat_id):
+  def classify(self, chat_id): 
     fileInfo = self.feeder(self.files)
     if fileInfo:
       try: 
@@ -193,6 +202,11 @@ class FileClassifier(telepot.helper.Monitor):
 
   def on_chat_message(self, msg):
     content_type, chat_type, chat_id = telepot.glance(msg)
+
+    if chat_id != self.superUser:
+      self.bot.sendMessage(chat_id, 'Permission denied ...')
+      self.logger.debug('Invalid user access %d' % chat_id)
+      return
 
     if msg['text'] == '/classify': 
       self.fileInfo = None
@@ -284,11 +298,10 @@ class FileClassifier(telepot.helper.Monitor):
 
 # Delegator Bot
 class ChatBot(telepot.DelegatorBot):
-  def __init__(self, token, cl, srcPath, destPath, baseProb):
-    
+  def __init__(self, token, cl, srcPath, destPath, baseProb, superUser): 
     super(ChatBot, self).__init__(token, 
     [
-      (per_application(), create_open(FileClassifier, cl, srcPath, destPath, baseProb)),
+      (per_application(), create_open(FileClassifier, cl, srcPath, destPath, baseProb, superUser)),
     ])
 
 
@@ -327,13 +340,6 @@ def sampleTrain(cl):
 
 if __name__ == '__main__':
   try:
-    cl = docclass.fisherclassifier(docclass.getwords) 
-    cl.setdb('torrent.db')
-    sampleTrain(cl)
-
-    logger = log.setupCustomLogger('fileclassifier', 'fileclassifier.log') 
-
-   
     with open('setting.json', 'r') as f:
       setting = json.load(f)
 
@@ -341,8 +347,15 @@ if __name__ == '__main__':
     SRC_PATH = str(setting['src_path'])
     DEST_PATH = str(setting['dest_path'])
     BASE_PROB = float(setting['base_prob'])
+    SUPER_USER = int(setting['super_user'])
 
-    bot = ChatBot(TOKEN, cl, SRC_PATH, DEST_PATH, BASE_PROB)
+    cl = docclass.fisherclassifier(docclass.getwords) 
+    cl.setdb('torrent.db')
+    # sampleTrain(cl)
+
+    logger = log.setupCustomLogger('fileclassifier', 'fileclassifier.log')
+
+    bot = ChatBot(TOKEN, cl, SRC_PATH, DEST_PATH, BASE_PROB, SUPER_USER)
     bot.message_loop(run_forever='Listening...')
 
   except KeyboardInterrupt:
